@@ -22,7 +22,7 @@
         :src="streamUrl"
         :type="streamType"
         :video-id="video.id"
-        :display-aspect-ratio="video.display_aspect_ratio"
+        :display-aspect-ratio="displayAspectRatio"
       />
 
       <!-- Video info -->
@@ -31,7 +31,7 @@
         <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
           <span v-if="video.duration">{{ formatDuration(video.duration) }}</span>
           <span v-if="video.resolution">{{ video.resolution }}</span>
-          <span v-if="video.display_aspect_ratio">DAR {{ video.display_aspect_ratio }}</span>
+          <span v-if="displayAspectRatio">显示比例 {{ displayAspectRatio }}</span>
           <span v-if="video.codec">{{ video.codec.toUpperCase() }}</span>
           <span>{{ formatSize(video.file_size) }}</span>
           <span>{{ formatDate(video.created_at) }}</span>
@@ -94,11 +94,48 @@ const notFound = ref(false)
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
 
+function hasNonSquarePixels(sampleAspectRatio) {
+  if (!sampleAspectRatio || sampleAspectRatio === '1:1' || sampleAspectRatio === 'N/A' || sampleAspectRatio === '0:1') {
+    return false
+  }
+  const parts = sampleAspectRatio.split(':')
+  if (parts.length !== 2) return false
+  const num = Number(parts[0])
+  const den = Number(parts[1])
+  if (!Number.isFinite(num) || !Number.isFinite(den) || num <= 0 || den <= 0) return false
+  return num !== den
+}
+
+function shouldUseMp4Stream(item) {
+  if (!item) return false
+  if (item.playback_path) return true
+
+  const rotation = ((Number(item.rotation) || 0) % 360 + 360) % 360
+  if (rotation === 90 || rotation === 180 || rotation === 270) {
+    return true
+  }
+
+  if (hasNonSquarePixels(item.sample_aspect_ratio)) {
+    return true
+  }
+
+  const codec = (item.codec || '').toLowerCase()
+  if (codec && codec !== 'h264') {
+    return true
+  }
+
+  return false
+}
+
 const videoId = computed(() => Number(route.params.id))
 const streamUrl = computed(() => videosApi.getStreamUrl(videoId.value))
 const streamType = computed(() => {
   if (!video.value) return 'video/mp4'
-  return video.value.playback_path ? 'video/mp4' : video.value.mime_type
+  return shouldUseMp4Stream(video.value) ? 'video/mp4' : video.value.mime_type
+})
+const displayAspectRatio = computed(() => {
+  if (!video.value) return ''
+  return video.value.final_display_aspect_ratio || video.value.display_aspect_ratio || ''
 })
 const downloadUrl = computed(() => videosApi.getDownloadUrl(videoId.value))
 

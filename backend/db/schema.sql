@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS videos (
     resolution    TEXT    DEFAULT '',
     sample_aspect_ratio TEXT DEFAULT '',
     display_aspect_ratio TEXT DEFAULT '',
+    rotation      INTEGER DEFAULT 0,
+    display_width INTEGER DEFAULT 0,
+    display_height INTEGER DEFAULT 0,
+    final_display_aspect_ratio TEXT DEFAULT '',
     codec         TEXT    DEFAULT '',
     created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );

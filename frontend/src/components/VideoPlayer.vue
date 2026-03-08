@@ -65,6 +65,19 @@ function normalizeAspectRatio(raw) {
   return `${width}:${height}`
 }
 
+function applyIntrinsicAspectRatio() {
+  if (!player) return false
+  const width = Number(player.videoWidth?.())
+  const height = Number(player.videoHeight?.())
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return false
+  }
+
+  player.aspectRatio(`${width}:${height}`)
+  return true
+}
+
 function initPlayer() {
   if (!videoEl.value) return
 
@@ -86,6 +99,8 @@ function initPlayer() {
 
   // Restore progress
   player.on('loadedmetadata', () => {
+    applyIntrinsicAspectRatio()
+
     const saved = loadProgress(props.videoId)
     if (saved > 0) {
       player.currentTime(saved)
@@ -126,6 +141,10 @@ onBeforeUnmount(() => {
 // Watch src changes
 watch(() => [props.src, props.type], ([newSrc, newType]) => {
   if (player) {
+    const fallbackAspectRatio = normalizeAspectRatio(props.displayAspectRatio)
+    if (fallbackAspectRatio) {
+      player.aspectRatio(fallbackAspectRatio)
+    }
     player.src({ src: newSrc, type: newType })
   }
 })

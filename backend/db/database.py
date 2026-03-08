@@ -25,6 +25,10 @@ async def _migrate_videos_table(db: aiosqlite.Connection):
         "playback_path": "TEXT DEFAULT NULL",
         "sample_aspect_ratio": "TEXT DEFAULT ''",
         "display_aspect_ratio": "TEXT DEFAULT ''",
+        "rotation": "INTEGER DEFAULT 0",
+        "display_width": "INTEGER DEFAULT 0",
+        "display_height": "INTEGER DEFAULT 0",
+        "final_display_aspect_ratio": "TEXT DEFAULT ''",
     }
 
     for column_name, column_type in required_columns.items():
