@@ -12,7 +12,7 @@ from routers.videos import router as video_router
 
 # 项目根目录（video-site/）
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path("/mnt/mydisk/video-site")
 
 # 运行时数据目录
 VIDEOS_DIR = DATA_DIR / "videos"

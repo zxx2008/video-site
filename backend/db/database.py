@@ -2,7 +2,7 @@ import aiosqlite
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DB_PATH = BASE_DIR / "data" / "videohub.db"
+DB_PATH = Path("/mnt/mydisk/video-site/videohub.db")
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 

@@ -1,8 +1,7 @@
 import ffmpeg
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-THUMBS_DIR = BASE_DIR / "data" / "thumbs"
+THUMBS_DIR = Path("/mnt/mydisk/video-site/thumbs")
 
 
 def probe_video(file_path: str) -> dict:

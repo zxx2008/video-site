@@ -12,10 +12,10 @@ from db.database import get_db
 from services.video import validate_video_file
 from utils.ffmpeg import probe_video, generate_thumbnail
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-VIDEOS_DIR = BASE_DIR / "data" / "videos"
-THUMBS_DIR = BASE_DIR / "data" / "thumbs"
-CHUNKS_DIR = BASE_DIR / "data" / "chunks"
+DATA_DIR = Path("/mnt/mydisk/video-site")
+VIDEOS_DIR = DATA_DIR / "videos"
+THUMBS_DIR = DATA_DIR / "thumbs"
+CHUNKS_DIR = DATA_DIR / "chunks"
 
 # 默认占位缩略图
 PLACEHOLDER_THUMB = Path(__file__).resolve().parent.parent / "static" / "placeholder.jpg"

@@ -1,6 +1,7 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-aiosqlite>=0.20.0
-python-multipart>=0.0.18
-ffmpeg-python>=0.2.0
-aiofiles>=24.1.0
+# 使用阿里云镜像安装: pip install -i http://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+fastapi==0.115.0
+uvicorn[standard]==0.34.0
+aiosqlite==0.20.0
+python-multipart==0.0.18
+ffmpeg-python==0.2.0
+aiofiles==24.1.0
