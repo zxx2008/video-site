@@ -3,11 +3,14 @@ CREATE TABLE IF NOT EXISTS videos (
     title         TEXT    NOT NULL,
     filename      TEXT    NOT NULL,
     storage_path  TEXT    NOT NULL,
+    playback_path TEXT    DEFAULT NULL,
     thumbnail_path TEXT   DEFAULT NULL,
     mime_type     TEXT    NOT NULL,
     file_size     INTEGER NOT NULL,
     duration      REAL    DEFAULT 0,
     resolution    TEXT    DEFAULT '',
+    sample_aspect_ratio TEXT DEFAULT '',
+    display_aspect_ratio TEXT DEFAULT '',
     codec         TEXT    DEFAULT '',
     created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );

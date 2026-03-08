@@ -20,8 +20,9 @@
       <!-- Player -->
       <VideoPlayer
         :src="streamUrl"
-        :type="video.mime_type"
+        :type="streamType"
         :video-id="video.id"
+        :display-aspect-ratio="video.display_aspect_ratio"
       />
 
       <!-- Video info -->
@@ -30,6 +31,7 @@
         <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
           <span v-if="video.duration">{{ formatDuration(video.duration) }}</span>
           <span v-if="video.resolution">{{ video.resolution }}</span>
+          <span v-if="video.display_aspect_ratio">DAR {{ video.display_aspect_ratio }}</span>
           <span v-if="video.codec">{{ video.codec.toUpperCase() }}</span>
           <span>{{ formatSize(video.file_size) }}</span>
           <span>{{ formatDate(video.created_at) }}</span>
@@ -94,6 +96,10 @@ const deleting = ref(false)
 
 const videoId = computed(() => Number(route.params.id))
 const streamUrl = computed(() => videosApi.getStreamUrl(videoId.value))
+const streamType = computed(() => {
+  if (!video.value) return 'video/mp4'
+  return video.value.playback_path ? 'video/mp4' : video.value.mime_type
+})
 const downloadUrl = computed(() => videosApi.getDownloadUrl(videoId.value))
 
 async function fetchVideo() {

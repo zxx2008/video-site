@@ -10,7 +10,12 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from db.database import get_db
 from services.video import validate_video_file
-from utils.ffmpeg import probe_video, generate_thumbnail
+from utils.ffmpeg import (
+    probe_video,
+    generate_thumbnail,
+    generate_playback_video,
+    has_non_square_pixels,
+)
 
 DATA_DIR = Path("/mnt/mydisk/video-site")
 VIDEOS_DIR = DATA_DIR / "videos"
@@ -69,13 +74,15 @@ async def upload_video(
     title: Optional[str] = Form(default=None),
     db=Depends(get_db),
 ):
-    validate_video_file(file.filename, file.content_type)
+    filename = file.filename or ""
+    content_type = file.content_type or ""
+    validate_video_file(filename, content_type)
 
     if not title:
-        title = Path(file.filename).stem
+        title = Path(filename).stem
 
     # 写入磁盘
-    storage_filename = f"{int(time.time())}_{file.filename}"
+    storage_filename = f"{int(time.time())}_{filename}"
     storage_path = str(VIDEOS_DIR / storage_filename)
 
     file_size = 0
@@ -90,13 +97,24 @@ async def upload_video(
     # 写入数据库
     cursor = await db.execute(
         """INSERT INTO videos (title, filename, storage_path, mime_type, file_size,
-           duration, resolution, codec)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (title, file.filename, storage_path, file.content_type, file_size,
-         metadata["duration"], metadata["resolution"], metadata["codec"]),
+           duration, resolution, sample_aspect_ratio, display_aspect_ratio, codec)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (title, filename, storage_path, content_type, file_size,
+         metadata["duration"], metadata["resolution"], metadata["sample_aspect_ratio"],
+         metadata["display_aspect_ratio"], metadata["codec"]),
     )
     await db.commit()
     video_id = cursor.lastrowid
+
+    # 生成方形像素播放副本（仅针对非 1:1 像素宽高比）
+    if has_non_square_pixels(metadata["sample_aspect_ratio"]):
+        playback_path = generate_playback_video(storage_path, video_id)
+        if playback_path:
+            await db.execute(
+                "UPDATE videos SET playback_path = ? WHERE id = ?",
+                (playback_path, video_id),
+            )
+            await db.commit()
 
     # 生成缩略图
     thumb_path = generate_thumbnail(storage_path, video_id)
@@ -134,18 +152,58 @@ async def file_iterator(file_path: str, start: int, end: int, chunk_size: int = 
 @router.get("/{video_id}/stream")
 async def stream_video(video_id: int, request: Request, db=Depends(get_db)):
     cursor = await db.execute(
-        "SELECT storage_path, mime_type, file_size FROM videos WHERE id = ?",
+        """SELECT storage_path, playback_path, mime_type, resolution, codec,
+           sample_aspect_ratio, display_aspect_ratio FROM videos WHERE id = ?""",
         (video_id,),
     )
     row = await cursor.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="视频不存在")
 
-    file_path = row["storage_path"]
+    storage_path = row["storage_path"]
+    file_path = storage_path
     mime_type = row["mime_type"]
 
-    if not os.path.exists(file_path):
+    if not os.path.exists(storage_path):
         raise HTTPException(status_code=404, detail="视频文件不存在")
+
+    playback_path = row["playback_path"]
+    if playback_path and os.path.exists(playback_path):
+        file_path = playback_path
+        mime_type = "video/mp4"
+    else:
+        metadata = None
+        sample_aspect_ratio = row["sample_aspect_ratio"] or ""
+
+        # 老数据补齐元信息
+        if not sample_aspect_ratio or not row["display_aspect_ratio"] or not row["resolution"] or not row["codec"]:
+            metadata = probe_video(storage_path)
+            sample_aspect_ratio = metadata["sample_aspect_ratio"]
+            await db.execute(
+                """UPDATE videos
+                   SET resolution = ?, codec = ?, sample_aspect_ratio = ?, display_aspect_ratio = ?
+                   WHERE id = ?""",
+                (
+                    metadata["resolution"],
+                    metadata["codec"],
+                    metadata["sample_aspect_ratio"],
+                    metadata["display_aspect_ratio"],
+                    video_id,
+                ),
+            )
+            await db.commit()
+
+        # 针对非方形像素视频生成兼容播放副本，修复浏览器纵向拉伸
+        if has_non_square_pixels(sample_aspect_ratio):
+            new_playback_path = generate_playback_video(storage_path, video_id)
+            if new_playback_path and os.path.exists(new_playback_path):
+                await db.execute(
+                    "UPDATE videos SET playback_path = ? WHERE id = ?",
+                    (new_playback_path, video_id),
+                )
+                await db.commit()
+                file_path = new_playback_path
+                mime_type = "video/mp4"
 
     file_size = os.path.getsize(file_path)
     range_header = request.headers.get("range")
@@ -234,7 +292,7 @@ async def download_video(video_id: int, request: Request, db=Depends(get_db)):
 @router.delete("/{video_id}")
 async def delete_video(video_id: int, db=Depends(get_db)):
     cursor = await db.execute(
-        "SELECT storage_path, thumbnail_path FROM videos WHERE id = ?",
+        "SELECT storage_path, playback_path, thumbnail_path FROM videos WHERE id = ?",
         (video_id,),
     )
     row = await cursor.fetchone()
@@ -242,7 +300,7 @@ async def delete_video(video_id: int, db=Depends(get_db)):
         raise HTTPException(status_code=404, detail="视频不存在")
 
     # 删除文件（忽略不存在的情况）
-    for path in [row["storage_path"], row["thumbnail_path"]]:
+    for path in [row["storage_path"], row["playback_path"], row["thumbnail_path"]]:
         if path:
             try:
                 os.remove(path)
@@ -342,13 +400,24 @@ async def merge_chunks(
     # 写入数据库
     cursor = await db.execute(
         """INSERT INTO videos (title, filename, storage_path, mime_type, file_size,
-           duration, resolution, codec)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+           duration, resolution, sample_aspect_ratio, display_aspect_ratio, codec)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (title, filename, storage_path, mime_type, file_size,
-         metadata["duration"], metadata["resolution"], metadata["codec"]),
+         metadata["duration"], metadata["resolution"], metadata["sample_aspect_ratio"],
+         metadata["display_aspect_ratio"], metadata["codec"]),
     )
     await db.commit()
     video_id = cursor.lastrowid
+
+    # 生成方形像素播放副本（仅针对非 1:1 像素宽高比）
+    if has_non_square_pixels(metadata["sample_aspect_ratio"]):
+        playback_path = generate_playback_video(storage_path, video_id)
+        if playback_path:
+            await db.execute(
+                "UPDATE videos SET playback_path = ? WHERE id = ?",
+                (playback_path, video_id),
+            )
+            await db.commit()
 
     # 生成缩略图
     thumb_path = generate_thumbnail(storage_path, video_id)

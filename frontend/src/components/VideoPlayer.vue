@@ -13,11 +13,11 @@ const props = defineProps({
   src: { type: String, required: true },
   type: { type: String, default: 'video/mp4' },
   videoId: { type: [Number, String], required: true },
+  displayAspectRatio: { type: String, default: '' },
 })
 
 const videoEl = ref(null)
 let player = null
-let saveTimer = null
 
 // Progress memory
 const STORAGE_KEY = 'videohub_progress'
@@ -51,17 +51,38 @@ function clearProgress(id) {
   }
 }
 
+function normalizeAspectRatio(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  const parts = raw.split(':')
+  if (parts.length !== 2) return ''
+
+  const width = Number(parts[0])
+  const height = Number(parts[1])
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return ''
+  }
+
+  return `${width}:${height}`
+}
+
 function initPlayer() {
   if (!videoEl.value) return
 
-  player = videojs(videoEl.value, {
+  const aspectRatio = normalizeAspectRatio(props.displayAspectRatio)
+  const playerOptions = {
     controls: true,
     preload: 'auto',
     responsive: true,
     fluid: true,
     playbackRates: [0.5, 1, 1.5, 2],
     sources: [{ src: props.src, type: props.type }],
-  })
+  }
+
+  if (aspectRatio) {
+    playerOptions.aspectRatio = aspectRatio
+  }
+
+  player = videojs(videoEl.value, playerOptions)
 
   // Restore progress
   player.on('loadedmetadata', () => {
@@ -103,9 +124,17 @@ onBeforeUnmount(() => {
 })
 
 // Watch src changes
-watch(() => props.src, (newSrc) => {
+watch(() => [props.src, props.type], ([newSrc, newType]) => {
   if (player) {
-    player.src({ src: newSrc, type: props.type })
+    player.src({ src: newSrc, type: newType })
+  }
+})
+
+watch(() => props.displayAspectRatio, (newRatio) => {
+  if (!player) return
+  const aspectRatio = normalizeAspectRatio(newRatio)
+  if (aspectRatio) {
+    player.aspectRatio(aspectRatio)
   }
 })
 </script>
