@@ -18,12 +18,13 @@ DATA_DIR = Path("/mnt/mydisk/video-site")
 VIDEOS_DIR = DATA_DIR / "videos"
 THUMBS_DIR = DATA_DIR / "thumbs"
 CHUNKS_DIR = DATA_DIR / "chunks"
+PLAYBACK_DIR = DATA_DIR / "playback"
 DB_PATH = DATA_DIR / "videohub.db"
 
 
 def ensure_data_dirs():
     """确保运行时数据目录存在"""
-    for d in [VIDEOS_DIR, THUMBS_DIR, CHUNKS_DIR]:
+    for d in [VIDEOS_DIR, THUMBS_DIR, CHUNKS_DIR, PLAYBACK_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
