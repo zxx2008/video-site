@@ -187,7 +187,7 @@ def generate_playback_video(video_path: str, video_id: int) -> str:
                 preset="veryfast",
             )
             .overwrite_output()
-            .run(quiet=True)
+            .run(quiet=True, cmd=['nice', '-n', '19', 'ffmpeg'])
         )
     except ffmpeg.Error:
         return ""
@@ -208,7 +208,7 @@ def generate_thumbnail(video_path: str, video_id: int) -> str:
                 .filter("scale", 320, -1)
                 .output(thumbnail_path, vframes=1)
                 .overwrite_output()
-                .run(quiet=True)
+                .run(quiet=True, cmd=['nice', '-n', '19', 'ffmpeg'])
             )
             return thumbnail_path
         except ffmpeg.Error:
