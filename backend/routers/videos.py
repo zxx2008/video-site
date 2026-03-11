@@ -1,6 +1,7 @@
 import os
 import time
 import shutil
+import urllib.parse
 from pathlib import Path
 from typing import Optional
 
@@ -295,9 +296,14 @@ async def download_video(video_id: int, request: Request, db=Depends(get_db)):
     mime_type = row["mime_type"]
     range_header = request.headers.get("range")
 
+    # 对文件名进行RFC 5987编码，支持中文文件名
+    # filename*参数使用UTF-8编码和百分比编码
+    encoded_filename = urllib.parse.quote(filename, safe='', encoding='utf-8')
+    content_disposition = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
+    
     headers = {
         "Accept-Ranges": "bytes",
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": content_disposition,
     }
 
     if range_header:

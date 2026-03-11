@@ -1,4 +1,5 @@
 import math
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -172,27 +173,55 @@ def generate_playback_video(video_path: str, video_id: int) -> str:
     # ffmpeg 默认会按源文件旋转元信息自动旋转画面并写入新帧尺寸
     vf_chain = "scale=trunc(iw*sar/2)*2:trunc(ih/2)*2,setsar=1"
 
-    try:
-        (
-            ffmpeg
-            .input(video_path)
-            .output(
-                playback_path,
-                vf=vf_chain,
-                vcodec="libx264",
-                acodec="aac",
-                pix_fmt="yuv420p",
-                movflags="+faststart",
-                crf=22,
-                preset="veryfast",
+    def run_ffmpeg_encoding(vcodec: str, **extra_args):
+        """运行ffmpeg编码，支持硬件和软件编码器"""
+        try:
+            # 构建ffmpeg命令对象
+            ff = (
+                ffmpeg
+                .input(video_path)
+                .output(
+                    playback_path,
+                    vf=vf_chain,
+                    vcodec=vcodec,
+                    acodec="aac",
+                    pix_fmt="yuv420p",
+                    movflags="+faststart",
+                    crf=25,
+                    preset="superfast",
+                    threads=2,
+                    bf=0,
+                    **extra_args
+                )
+                .overwrite_output()
             )
-            .overwrite_output()
-            .run(quiet=True, cmd=['nice', '-n', '19', 'ffmpeg'])
-        )
-    except ffmpeg.Error:
-        return ""
+            # 获取ffmpeg参数列表
+            args = ff.get_args()
+            # 添加nice命令以降低优先级，设置超时限制（1800秒=30分钟）
+            cmd = ['nice', '-n', '19', 'ffmpeg'] + args
+            # 运行命令，设置超时和错误处理
+            subprocess.run(
+                cmd,
+                check=True,
+                timeout=1800,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            return True
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ffmpeg.Error):
+            # 超时或编码失败
+            return False
 
-    return playback_path
+    # 先尝试硬件编码器（树莓派Video4Linux2硬件编码）
+    if run_ffmpeg_encoding(vcodec="h264_v4l2m2m"):
+        return playback_path
+    
+    # 硬件编码失败，回退到软件编码器
+    if run_ffmpeg_encoding(vcodec="libx264"):
+        return playback_path
+    
+    # 两次编码尝试都失败
+    return ""
 
 
 def generate_thumbnail(video_path: str, video_id: int) -> str:
@@ -202,16 +231,28 @@ def generate_thumbnail(video_path: str, video_id: int) -> str:
     # 先尝试 ss=1（第1秒），失败则 ss=0
     for ss in [1, 0]:
         try:
-            (
+            # 构建ffmpeg命令对象
+            ff = (
                 ffmpeg
                 .input(video_path, ss=ss)
                 .filter("scale", 320, -1)
                 .output(thumbnail_path, vframes=1)
                 .overwrite_output()
-                .run(quiet=True, cmd=['nice', '-n', '19', 'ffmpeg'])
+            )
+            # 获取ffmpeg参数列表
+            args = ff.get_args()
+            # 添加nice命令以降低优先级，设置超时限制（30秒）
+            cmd = ['nice', '-n', '19', 'ffmpeg'] + args
+            # 运行命令，设置超时和错误处理
+            subprocess.run(
+                cmd,
+                check=True,
+                timeout=30,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
             return thumbnail_path
-        except ffmpeg.Error:
+        except (ffmpeg.Error, subprocess.CalledProcessError, subprocess.TimeoutExpired):
             if ss == 0:
                 return ""
             continue
