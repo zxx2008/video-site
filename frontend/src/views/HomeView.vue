@@ -39,7 +39,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import videosApi from '../api/videos'
 import VideoCard from '../components/VideoCard.vue'
 import Pagination from '../components/Pagination.vue'
@@ -53,6 +53,43 @@ const page = ref(1)
 const pageSize = 20
 const loading = ref(false)
 const error = ref('')
+
+const STORAGE_KEY = 'videoListState'
+
+// 保存状态
+function saveState() {
+  const state = {
+    page: page.value,
+    scrollY: window.scrollY,
+    timestamp: Date.now()
+  }
+  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
+// 恢复状态
+function restoreState() {
+  try {
+    const saved = sessionStorage.getItem(STORAGE_KEY)
+    if (!saved) return null
+    
+    const state = JSON.parse(saved)
+    
+    // 30分钟内有效
+    if (Date.now() - state.timestamp > 30 * 60 * 1000) {
+      sessionStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    
+    return state
+  } catch (e) {
+    return null
+  }
+}
+
+// 清除状态
+function clearState() {
+  sessionStorage.removeItem(STORAGE_KEY)
+}
 
 function initPageFromQuery() {
   const pageFromQuery = parseInt(route.query.page)
@@ -82,7 +119,35 @@ function goToPage(p) {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+// 在离开页面前保存状态
+onBeforeRouteLeave((to, from, next) => {
+  // 只有当跳转到视频详情页时才保存状态
+  if (to.path.startsWith('/video/')) {
+    saveState()
+  }
+  next()
+})
+
 onMounted(() => {
+  // 检查是否有保存的状态需要恢复
+  const savedState = restoreState()
+  if (savedState) {
+    page.value = savedState.page
+    
+    // 先加载视频数据
+    fetchVideos().then(() => {
+      // 数据加载完成后，延迟恢复滚动位置
+      setTimeout(() => {
+        window.scrollTo({ top: savedState.scrollY, behavior: 'auto' })
+      }, 300)
+    })
+    
+    // 清除已使用的状态
+    clearState()
+    return
+  }
+  
+  // 没有保存的状态，从 URL 初始化
   initPageFromQuery()
   fetchVideos()
 })
