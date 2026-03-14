@@ -39,9 +39,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import videosApi from '../api/videos'
 import VideoCard from '../components/VideoCard.vue'
 import Pagination from '../components/Pagination.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 const videos = ref([])
 const total = ref(0)
@@ -49,6 +53,13 @@ const page = ref(1)
 const pageSize = 20
 const loading = ref(false)
 const error = ref('')
+
+function initPageFromQuery() {
+  const pageFromQuery = parseInt(route.query.page)
+  if (pageFromQuery && pageFromQuery > 0) {
+    page.value = pageFromQuery
+  }
+}
 
 async function fetchVideos() {
   loading.value = true
@@ -66,9 +77,13 @@ async function fetchVideos() {
 
 function goToPage(p) {
   page.value = p
+  router.replace({ query: { ...route.query, page: p } })
   fetchVideos()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-onMounted(fetchVideos)
+onMounted(() => {
+  initPageFromQuery()
+  fetchVideos()
+})
 </script>
