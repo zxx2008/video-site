@@ -1,0 +1,9 @@
+# 视频预编码脚本依赖
+# 安装方式: pip install -r requirements.txt
+
+# 可选：如果你想在脚本中使用 ffmpeg-python 库
+# 注意：这个脚本目前直接使用 subprocess 调用 ffmpeg，不需要此库
+# ffmpeg-python>=0.2.0
+
+# 如果需要进度条显示（可选增强）
+# tqdm>=4.65.0
